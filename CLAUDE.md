@@ -91,12 +91,14 @@ lookfirst/
 plugin/         .claude-plugin/plugin.json  hooks/hooks.json  .mcp.json  skills/lookfirst/SKILL.md  README.md
                 scripts/run-lookfirst (finds the lookfirst command for the hook and the MCP server)
 .claude-plugin/ marketplace.json (makes this repo installable as a plugin marketplace)
+npm/            the npm pointer package: only prints how to install lookfirst; no scripts, no dependencies
+.github/        workflows/ci.yml (lint, tests, sandbox tests)  workflows/release.yml (a v* tag publishes to PyPI)
 scripts/        record_fixtures.py  export_schema.py  build_popular_index.py  bench_hook.py
                 time_check.py (live timing for SPEC section 12)  make_demo_images.py (docs/demo/)
 data/           local data, gitignored except data/seed/ (the trending archive goes there when added)
 tests/          conftest.py (no network, no real tokens, host canary)  helpers.py
                 fixtures/ (harmless fakes, recorded API responses, lookalike pairs, injection README)
-docs/           SPEC.md  KICKOFF.md  THREAT_MODEL.md  PLAN-v0.1.md  RELEASE-NOTES-0.1.0.md
+docs/           SPEC.md  KICKOFF.md  THREAT_MODEL.md  PLAN-v0.1.md  RELEASE-NOTES-0.1.0.md  LAUNCH.md
                 schema/report-1.0.json (generated)  demo/ (the README's images and how they were made)
 THIRD_PARTY.md  IDEAS.md  README.md  LICENSE
 ```
@@ -122,6 +124,7 @@ Keep this section accurate whenever scripts change.
 - rebuild the popular-repos list that ships with lookfirst (needs a GitHub token, about 3 minutes): `uv run python scripts/build_popular_index.py`
 - refresh your own copy of that list: `uv run lookfirst update-index` (needs a GitHub token; saved in `~/.cache/lookfirst/`)
 - regenerate the published JSON schema after changing `lookfirst/verdict/schema.py`: `uv run python scripts/export_schema.py`
+- release a version: follow `docs/LAUNCH.md` ("Releasing a new version"); pushing a `v<version>` tag runs `.github/workflows/release.yml`, and the owner approves the PyPI step
 
 ## Definition of done for v0.1
 

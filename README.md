@@ -10,17 +10,17 @@ lookfirst lowers risk; it doesn't guarantee safety.
 
 **1. Your coding agent is about to run `npm install` in a repo it just cloned.** The repo's `postinstall` script would send your npm token away. lookfirst's Claude Code hook reads the install before it runs and stops it:
 
-![lookfirst's hook denying npm install, citing the line in scripts/setup.js that reads ~/.npmrc](docs/demo/hook.svg)
+![lookfirst's hook denying npm install, citing the line in scripts/setup.js that reads ~/.npmrc](https://github.com/lookfirst-dev/lookfirst/blob/main/docs/demo/hook.svg?raw=true)
 
 **2. To see what the install would really do, run it in the sandbox.** It runs inside a Linux container with decoy secrets, and the decoy npm token gets read:
 
-![lookfirst check csvplot --sandbox: Don't run, the install read the decoy npm token](docs/demo/sandbox.svg)
+![lookfirst check csvplot --sandbox: Don't run, the install read the decoy npm token](https://github.com/lookfirst-dev/lookfirst/blob/main/docs/demo/sandbox.svg?raw=true)
 
 **3. Fake copies of popular projects are named, with the original.** This copy of Ollama is made up for lookfirst's tests:
 
-![lookfirst check on a made-up copy of Ollama: Don't run, looks like a copy of ollama/ollama](docs/demo/lookalike.svg)
+![lookfirst check on a made-up copy of Ollama: Don't run, looks like a copy of ollama/ollama](https://github.com/lookfirst-dev/lookfirst/blob/main/docs/demo/lookalike.svg?raw=true)
 
-How each image was made: [docs/demo/README.md](docs/demo/README.md).
+How each image was made: [docs/demo/README.md](https://github.com/lookfirst-dev/lookfirst/blob/main/docs/demo/README.md).
 
 ## Install
 
@@ -51,7 +51,7 @@ The plugin adds a hook that checks risky commands before Claude runs them, an MC
 /plugin install lookfirst@lookfirst
 ```
 
-More about how the hook behaves: [plugin/README.md](plugin/README.md).
+More about how the hook behaves: [plugin/README.md](https://github.com/lookfirst-dev/lookfirst/blob/main/plugin/README.md).
 
 ### From source
 
@@ -102,7 +102,7 @@ For an agent, `lookfirst mcp` is the MCP server, and `lookfirst hook` is the Cla
 
 ## Threat model in brief
 
-lookfirst is built against attackers who copy a popular project, make the copy look established and hide something harmful in its install, or who plant instructions for AI agents in a repo. It assumes everything it reads is hostile: it never runs the target on your computer, runs it only inside a container with nothing of yours mounted, treats every file and every model answer as data, and quotes what it found instead of repeating it as its own words. The full threat model, including what it can't defend against: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+lookfirst is built against attackers who copy a popular project, make the copy look established and hide something harmful in its install, or who plant instructions for AI agents in a repo. It assumes everything it reads is hostile: it never runs the target on your computer, runs it only inside a container with nothing of yours mounted, treats every file and every model answer as data, and quotes what it found instead of repeating it as its own words. The full threat model, including what it can't defend against: [docs/THREAT_MODEL.md](https://github.com/lookfirst-dev/lookfirst/blob/main/docs/THREAT_MODEL.md).
 
 ## What leaves your computer
 
@@ -116,14 +116,14 @@ Nothing else is sent, and there's no telemetry. Answers from GitHub are cached i
 
 ## Official sources
 
-lookfirst is published only at **github.com/lookfirst-dev/lookfirst** and as the **`lookfirst`** package on PyPI. A copy anywhere else, under any account or in any other package registry, isn't ours.
+lookfirst is published only at **github.com/lookfirst-dev/lookfirst** and as the **`lookfirst`** package on PyPI. The **`lookfirst`** package on npm only points here and installs nothing. A copy anywhere else, under any account or in any other package registry, isn't ours.
 
 ## Contributing
 
-- **Add your project's official sources** to [`lookfirst/registry/official.yaml`](lookfirst/registry/official.yaml) by pull request, so copies of it are easier to spot.
+- **Add your project's official sources** to [`lookfirst/registry/official.yaml`](https://github.com/lookfirst-dev/lookfirst/blob/main/lookfirst/registry/official.yaml) by pull request, so copies of it are easier to spot.
 - **Report a miss or a false alarm** as an issue, with the target and lookfirst's report.
-- Design and decisions: [docs/SPEC.md](docs/SPEC.md) and [docs/PLAN-v0.1.md](docs/PLAN-v0.1.md). Third-party licenses: [THIRD_PARTY.md](THIRD_PARTY.md).
+- Design and decisions: [docs/SPEC.md](https://github.com/lookfirst-dev/lookfirst/blob/main/docs/SPEC.md) and [docs/PLAN-v0.1.md](https://github.com/lookfirst-dev/lookfirst/blob/main/docs/PLAN-v0.1.md). Third-party licenses: [THIRD_PARTY.md](https://github.com/lookfirst-dev/lookfirst/blob/main/THIRD_PARTY.md).
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/lookfirst-dev/lookfirst/blob/main/LICENSE).

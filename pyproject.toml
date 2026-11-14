@@ -1,10 +1,23 @@
 [project]
 name = "lookfirst"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Check a GitHub repo, shell one-liner or package before you or your AI agent runs it."
+readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
+keywords = ["security", "supply-chain", "malware", "claude-code", "mcp", "sandbox"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development",
+]
 dependencies = [
     "typer>=0.27",
     "rich>=14.0",
@@ -19,6 +32,12 @@ dependencies = [
 
 [project.scripts]
 lookfirst = "lookfirst.entry:main"
+
+[project.urls]
+Homepage = "https://github.com/lookfirst-dev/lookfirst"
+Source = "https://github.com/lookfirst-dev/lookfirst"
+Issues = "https://github.com/lookfirst-dev/lookfirst/issues"
+Changelog = "https://github.com/lookfirst-dev/lookfirst/releases"
 
 [dependency-groups]
 dev = [
