@@ -1,0 +1,20 @@
+{
+  "name": "lookfirst",
+  "version": "0.1.0",
+  "description": "lookfirst is a Python command-line tool. This npm package only points to it: install with `uv tool install lookfirst`.",
+  "keywords": ["security", "supply-chain", "claude-code", "mcp"],
+  "homepage": "https://github.com/lookfirst-dev/lookfirst",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lookfirst-dev/lookfirst.git"
+  },
+  "bugs": "https://github.com/lookfirst-dev/lookfirst/issues",
+  "license": "Apache-2.0",
+  "bin": {
+    "lookfirst": "bin/lookfirst.js"
+  },
+  "files": ["bin/lookfirst.js", "README.md"],
+  "engines": {
+    "node": ">=18"
+  }
+}

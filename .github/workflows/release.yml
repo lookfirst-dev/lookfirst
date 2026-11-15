@@ -1,0 +1,99 @@
+name: Release
+
+# Publishes lookfirst to PyPI when a version tag such as v0.1.0 is pushed.
+#
+# PyPI trusts this exact workflow (trusted publishing): no password or token is stored
+# anywhere. PyPI's publisher is set to owner lookfirst-dev, repository lookfirst, workflow
+# release.yml and environment pypi, so renaming this file or the environment breaks it.
+# The pypi environment in the repo's settings can require a person to approve each run.
+#
+# How to release: docs/LAUNCH.md, "Releasing a new version".
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check the version and run the tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.12"
+      - name: The tag matches the version in pyproject.toml
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(uv version --short)"
+          if [ "v${version}" != "${TAG}" ]; then
+            echo "The tag is ${TAG}, but pyproject.toml says ${version}." >&2
+            exit 1
+          fi
+          test -f "docs/RELEASE-NOTES-${version}.md" || {
+            echo "docs/RELEASE-NOTES-${version}.md is missing." >&2
+            exit 1
+          }
+      - name: Install
+        run: uv sync --locked
+      - name: Lint and tests
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run pytest
+
+  publish:
+    name: Build and publish to PyPI
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/lookfirst/
+    permissions:
+      contents: read
+      id-token: write # only this job may ask GitHub for the identity PyPI trusts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: uv build --no-sources
+      - name: Publish
+        run: uv publish --trusted-publishing always
+
+  github-release:
+    name: Make the GitHub release
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # to create the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Create the release from the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "${TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "lookfirst ${TAG#v}" \
+            --notes-file "docs/RELEASE-NOTES-${TAG#v}.md" \
+            --verify-tag

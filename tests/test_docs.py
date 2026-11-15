@@ -21,7 +21,10 @@ DOCS = [
     ROOT / "docs" / "RELEASE-NOTES-0.1.0.md",
     ROOT / "docs" / "demo" / "README.md",
     ROOT / "plugin" / "README.md",
+    ROOT / "docs" / "LAUNCH.md",
+    ROOT / "npm" / "README.md",
 ]
+REPO_FILES = "https://github.com/lookfirst-dev/lookfirst/blob/main/"
 SAFETY = "lookfirst lowers risk; it doesn't guarantee safety."
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 
@@ -49,7 +52,8 @@ def test_the_readme_has_every_section_spec_section_12_asks_for(heading: str) -> 
 
 @pytest.mark.parametrize(
     "doc",
-    [d for d in DOCS if d.parent.name != "demo"],  # the demo notes only say how images were made
+    # the demo notes, launch steps and npm pointer aren't about what lookfirst finds
+    [d for d in DOCS if d.parent.name not in ("demo", "npm") and d.name != "LAUNCH.md"],
     ids=lambda p: str(p.relative_to(ROOT)),
 )
 def test_every_doc_says_lookfirst_lowers_risk_without_guarantees(doc: Path) -> None:
@@ -59,6 +63,10 @@ def test_every_doc_says_lookfirst_lowers_risk_without_guarantees(doc: Path) -> N
 @pytest.mark.parametrize("doc", DOCS, ids=lambda p: str(p.relative_to(ROOT)))
 def test_every_local_link_points_at_a_file_that_exists(doc: Path) -> None:
     for link in LINK.findall(doc.read_text()):
+        if link.startswith(REPO_FILES):  # absolute, so they also work on PyPI's page
+            path = ROOT / link.removeprefix(REPO_FILES).split("?")[0].split("#")[0]
+            assert path.exists(), f"{doc.name} links to {link}, which isn't in the repo"
+            continue
         if link.startswith(("http://", "https://", "#")):
             continue
         path = (doc.parent / link.split("#")[0]).resolve()
@@ -110,6 +118,6 @@ def test_the_plugin_install_steps_match_the_marketplace_and_plugin_names() -> No
 def test_demo_images_exist_and_show_no_home_folder(image: str) -> None:
     text = (ROOT / "docs" / "demo" / image).read_text()
     assert text.startswith("<svg")
-    for private in ("/Users/", "/private/", "ruikunwang"):
+    for private in ("/Users/", "/private/", Path.home().name):
         assert private not in text, f"{image} shows {private}"
     assert image in README.read_text()
