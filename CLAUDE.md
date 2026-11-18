@@ -94,6 +94,7 @@ plugin/         .claude-plugin/plugin.json  hooks/hooks.json  .mcp.json  skills/
 npm/            the npm pointer package: only prints how to install lookfirst; no scripts, no dependencies
 .github/        workflows/ci.yml (lint, tests, sandbox tests)  workflows/release.yml (a v* tag publishes to PyPI)
                 ISSUE_TEMPLATE/ (forms for misses and false alarms)
+SECURITY.md     how to report a flaw in lookfirst privately
 scripts/        record_fixtures.py  export_schema.py  build_popular_index.py  bench_hook.py
                 time_check.py (live timing for SPEC section 12)  make_demo_images.py (docs/demo/)
 data/           local data, gitignored except data/seed/ (the trending archive goes there when added)

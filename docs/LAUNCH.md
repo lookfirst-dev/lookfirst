@@ -1,35 +1,23 @@
-# Launch day, and releasing later versions
+# The launch, and releasing later versions
 
 Who does what: **you** are the owner; **Claude** is the coding agent working in this repo. Every step that publishes something or signs in to an account is yours.
 
-## Already done (14 Nov 2026)
+## The launch (done 18 Nov 2026)
 
-- The GitHub org `lookfirst-dev`, with two-factor authentication required. The repo `lookfirst-dev/lookfirst`, still private.
-- PyPI: a pending trusted publisher for project `lookfirst`, owner `lookfirst-dev`, repository `lookfirst`, workflow `release.yml`, environment `pypi`.
-- npm: your account, with two-factor authentication on, and the npm org `lookfirst-dev`.
-- The release workflow (`.github/workflows/release.yml`), the npm pointer package (`npm/`) and version 0.1.0 are on `main`.
+lookfirst 0.1.0 is out:
 
-## Launch day, in order
+- **GitHub:** `lookfirst-dev/lookfirst` is public, with the release `v0.1.0`, the issue forms and the security policy. The org requires two-factor authentication. The old `RuikunWang506/preflight` is private and archived.
+- **PyPI:** `lookfirst` 0.1.0, published by `.github/workflows/release.yml` through trusted publishing. The `pypi` environment makes every upload wait for your approval.
+- **npm:** `lookfirst` 0.1.0, the pointer package from `npm/`. It installs and runs nothing.
+- **The plugin:** installs from GitHub with `/plugin marketplace add lookfirst-dev/lookfirst`, then `/plugin install lookfirst@lookfirst`.
 
-1. **Record the hook demo** (you and Claude, optional, 15 minutes). See "Recording the hook" below.
-2. **Make the repo public** (you). Settings, then General, then at the bottom **Change repository visibility**, to Public. Do this before publishing, so the links on PyPI and npm work.
-3. **Create the `pypi` environment** (you, 2 minutes). Settings, then Environments, then **New environment**, named exactly `pypi`. Under "Deployment protection rules", tick **Required reviewers**, add yourself and save. Every release then waits for your click before anything reaches PyPI. On GitHub's free plan this setting only exists for public repos, which is why it comes after step 2.
-4. **Tag the release** (Claude, after your go-ahead). On `main`: `git tag -a v0.1.0 -m "lookfirst 0.1.0"`, then `git push origin v0.1.0`. The Release workflow starts.
-5. **Approve the PyPI upload** (you). In the repo's Actions tab, open the "Release" run. When it reaches "Build and publish to PyPI", click **Review deployments**, tick `pypi`, then **Approve and deploy**. Afterwards the workflow makes the GitHub release from `docs/RELEASE-NOTES-0.1.0.md`.
-6. **Check it installs** (Claude). In a clean shell: `uv tool install lookfirst==0.1.0`, then `lookfirst --version` and `lookfirst check psf/requests`.
-7. **Publish the npm pointer** (you, in Terminal):
+Still to do: **announce** (you). The launch checklist in `docs/KICKOFF.md` has the channels and the timing advice. For the first 48 hours, answer every issue.
 
-   ```bash
-   cd npm
-   npm publish --dry-run
-   npm publish
-   ```
+## Security reports
 
-   npm asks for a code from your authenticator app. Run the dry run first and check it lists only `README.md`, `bin/lookfirst.js` and `package.json`.
-8. **Check the plugin installs from GitHub** (you, in Claude Code): `/plugin marketplace add lookfirst-dev/lookfirst`, then `/plugin install lookfirst@lookfirst`.
-9. **Announce** (you). The launch checklist in `docs/KICKOFF.md` has the channels and the timing advice.
+`SECURITY.md` asks people to report flaws in lookfirst privately through GitHub. For that to work, **Private vulnerability reporting** must be on: Settings, then Advanced Security (or Code security), then Private vulnerability reporting.
 
-If something goes wrong after step 5: a release on PyPI can't be replaced, only followed by a newer one. Fix it, then release 0.1.1 as below. A badly broken release can be yanked on PyPI (the project's page, then Releases, then Options, then Yank), which stops new installs but keeps it for anyone who pinned it.
+When a report arrives, GitHub emails you and it appears under the repo's Security tab. Reply within 7 days, as the policy promises. Fix it in the advisory's temporary private fork, so the fix isn't public before the release, then release a new version as below and publish the advisory.
 
 ## Recording the hook
 
@@ -53,7 +41,9 @@ If the hook ever let it through, the fixture's script would only create the cana
 
 1. Make the change on a branch, open a pull request, let CI pass, and merge, as for any change.
 2. On a branch, set the new version in `pyproject.toml` and `plugin/.claude-plugin/plugin.json` (and `npm/package.json` only if the pointer itself changes), run `uv lock`, and add `docs/RELEASE-NOTES-<version>.md`. Use 0.1.1 for fixes and 0.2.0 for new features. Merge it.
-3. Tag `main` with `v<version>` and push the tag. Approve the PyPI step as on launch day.
+3. Tag `main` with `v<version>` and push the tag. The Release workflow starts. In the repo's Actions tab, open the "Release" run; when it reaches "Build and publish to PyPI", click **Review deployments**, tick `pypi`, then **Approve and deploy**. The workflow then makes the GitHub release from the release notes.
 4. People update with `uv tool upgrade lookfirst`. The plugin updates from GitHub when people update it in Claude Code.
 
 The release workflow refuses to publish when the tag doesn't match `pyproject.toml` or the release notes are missing.
+
+A release on PyPI can't be replaced, only followed by a newer one. A badly broken release can be yanked on PyPI (the project's page, then Releases, then Options, then Yank), which stops new installs but keeps it for anyone who pinned it.

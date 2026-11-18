@@ -122,6 +122,7 @@ lookfirst is published only at **github.com/lookfirst-dev/lookfirst** and as the
 
 - **Add your project's official sources** to [`lookfirst/registry/official.yaml`](https://github.com/lookfirst-dev/lookfirst/blob/main/lookfirst/registry/official.yaml) by pull request, so copies of it are easier to spot.
 - **Report a miss or a false alarm** with the [issue forms](https://github.com/lookfirst-dev/lookfirst/issues/new/choose), giving the target and lookfirst's report.
+- **Report a security flaw in lookfirst itself privately,** as [SECURITY.md](https://github.com/lookfirst-dev/lookfirst/blob/main/SECURITY.md) explains, not in a public issue.
 - Design and decisions: [docs/SPEC.md](https://github.com/lookfirst-dev/lookfirst/blob/main/docs/SPEC.md) and [docs/PLAN-v0.1.md](https://github.com/lookfirst-dev/lookfirst/blob/main/docs/PLAN-v0.1.md). Third-party licenses: [THIRD_PARTY.md](https://github.com/lookfirst-dev/lookfirst/blob/main/THIRD_PARTY.md).
 
 ## License
