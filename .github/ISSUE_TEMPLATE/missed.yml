@@ -1,0 +1,60 @@
+name: lookfirst missed something
+description: lookfirst said Looks OK or Caution about something that does harm when it's installed.
+title: "Missed: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a miss. This issue is public, so please:
+
+        - **Don't paste harmful code.** Describe what it does and point at the file and line instead.
+        - **Don't paste tokens, passwords or personal data.** Check the report before you paste it.
+        - **Describe what you saw rather than calling it malware,** unless a public report already says so.
+        - **Report the repo or package to GitHub or its registry as well,** so it can be taken down: [GitHub's guide to reporting abuse](https://docs.github.com/en/communities/maintaining-your-safety-on-github/reporting-abuse-or-spam).
+  - type: input
+    id: target
+    attributes:
+      label: What you checked
+      description: The exact target you gave lookfirst. Include the commit or version, because repos and packages change.
+      placeholder: owner/repo@abc1234, npm:some-package@1.2.3 or the curl | bash line
+    validations:
+      required: true
+  - type: dropdown
+    id: verdict
+    attributes:
+      label: lookfirst's verdict
+      options:
+        - Looks OK
+        - Caution
+    validations:
+      required: true
+  - type: dropdown
+    id: sandbox
+    attributes:
+      label: Did you use --sandbox?
+      options:
+        - "No"
+        - "Yes"
+    validations:
+      required: true
+  - type: textarea
+    id: missed
+    attributes:
+      label: What it missed, and how you know
+      description: What does installing it do? Point at the file and line, and link a public report if there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: lookfirst's report
+      description: The output of `lookfirst check <target>`, or the file from `--report report.md`.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: lookfirst version
+      description: The output of `lookfirst --version`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
