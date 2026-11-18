@@ -49,5 +49,5 @@ lookfirst reads hostile input by design, so it's built to be hard to turn agains
 
 ## Reporting a problem
 
-- **A miss or a false alarm:** open an issue with the target and lookfirst's report.
-- **A weakness in lookfirst itself,** such as a way to make it run a target or to put words in its mouth: please report it privately through GitHub's security advisories on the repository, not in a public issue.
+- **A miss or a false alarm:** use the [issue forms](https://github.com/lookfirst-dev/lookfirst/issues/new/choose), with the target and lookfirst's report.
+- **A weakness in lookfirst itself,** such as a way to make it run a target or to put words in its mouth: please report it privately, as [SECURITY.md](../SECURITY.md) explains, not in a public issue.

@@ -80,3 +80,16 @@ def test_lookfirst_finds_nothing_in_its_own_issue_forms(tmp_path: Path, monkeypa
     shutil.copytree(FORMS_DIR, repo / ".github" / "ISSUE_TEMPLATE")
     report = run_check(str(repo), cwd=tmp_path)
     assert report.verdict == "looks_ok", [f.id for f in report.findings]
+
+
+def test_the_chooser_sends_security_flaws_to_the_private_policy() -> None:
+    urls = [link["url"] for link in load(FORMS_DIR / "config.yml")["contact_links"]]
+    assert REPO_FILES + "SECURITY.md" in urls
+
+
+def test_the_security_policy_points_at_private_reporting_not_public_issues() -> None:
+    text = (ROOT / "SECURITY.md").read_text()
+    assert "https://github.com/lookfirst-dev/lookfirst/security/advisories/new" in text
+    assert "don't open a public issue" in text
+    assert "@" not in text  # no email address to leak or to spam
+    assert "Please don't send real malware." in text

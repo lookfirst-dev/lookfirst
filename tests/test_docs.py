@@ -23,6 +23,7 @@ DOCS = [
     ROOT / "plugin" / "README.md",
     ROOT / "docs" / "LAUNCH.md",
     ROOT / "npm" / "README.md",
+    ROOT / "SECURITY.md",
 ]
 REPO_FILES = "https://github.com/lookfirst-dev/lookfirst/blob/main/"
 SAFETY = "lookfirst lowers risk; it doesn't guarantee safety."
