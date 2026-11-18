@@ -1,0 +1,55 @@
+name: False alarm
+description: lookfirst said Caution or Don't run about something that's fine.
+title: "False alarm: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a false alarm. This issue is public, so please don't paste tokens, passwords or personal data. Check the report before you paste it.
+  - type: input
+    id: target
+    attributes:
+      label: What you checked
+      description: The exact target you gave lookfirst. Include the commit or version, because repos and packages change.
+      placeholder: owner/repo@abc1234, npm:some-package@1.2.3 or the curl | bash line
+    validations:
+      required: true
+  - type: dropdown
+    id: verdict
+    attributes:
+      label: lookfirst's verdict
+      options:
+        - Caution
+        - Don't run
+    validations:
+      required: true
+  - type: dropdown
+    id: sandbox
+    attributes:
+      label: Did you use --sandbox?
+      options:
+        - "No"
+        - "Yes"
+    validations:
+      required: true
+  - type: textarea
+    id: finding
+    attributes:
+      label: Which finding is wrong, and why
+      description: The finding's title or rule, and why it's fine. For example, it's the project's official repo, or the script only does what its README says.
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: lookfirst's report
+      description: The output of `lookfirst check <target>`, or the file from `--report report.md`.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: lookfirst version
+      description: The output of `lookfirst --version`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
