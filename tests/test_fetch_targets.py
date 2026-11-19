@@ -10,7 +10,8 @@ import httpx
 import pytest
 from conftest import HTTP_FIXTURES
 
-from lookfirst.core.errors import FetchError
+from lookfirst.core.config import Limits
+from lookfirst.core.errors import ArchiveTooBigError, DownloadTooBigError, FetchError
 from lookfirst.targets.base import open_target, parse_target
 
 HELLO_SHA = "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d"
@@ -31,6 +32,25 @@ def test_github_repo(recorded_http, tmp_path: Path) -> None:
         assert target.metadata["commit"]["sha"] == HELLO_SHA
         workdir = target.root.parent.parent
     assert not workdir.exists(), "the download folder is deleted afterwards"
+
+
+@pytest.mark.parametrize(
+    ("limits", "error"),
+    [
+        (Limits(max_entries=1), ArchiveTooBigError),
+        (Limits(max_download_bytes=10), DownloadTooBigError),
+    ],
+)
+def test_a_repo_too_big_to_check_says_how_to_check_a_copy(
+    recorded_http, tmp_path: Path, limits: Limits, error: type
+) -> None:
+    recorded_http("github_hello_world")
+    spec = parse_target("octocat/Hello-World", cwd=tmp_path)
+    with pytest.raises(error) as caught, open_target(spec, limits=limits):
+        pass
+    hint = caught.value.hint or ""
+    assert "git clone --depth 1 https://github.com/octocat/Hello-World" in hint
+    assert "lookfirst check ./Hello-World" in hint
 
 
 def test_github_url_with_ref(recorded_http, tmp_path: Path) -> None:

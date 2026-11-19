@@ -22,5 +22,13 @@ class UnsafeArchiveError(LookfirstError):
     """An archive was too big or too damaged to unpack safely."""
 
 
+class DownloadTooBigError(FetchError):
+    """A download went over lookfirst's size limit."""
+
+
+class ArchiveTooBigError(UnsafeArchiveError):
+    """An archive had more files, or unpacked to more bytes, than lookfirst's limits."""
+
+
 class CouldntCheckError(LookfirstError):
     """The main thing to check couldn't be read, so no verdict would mean anything."""

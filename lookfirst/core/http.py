@@ -22,7 +22,7 @@ import httpx
 
 from lookfirst import __version__
 from lookfirst.core.config import DEFAULT_LIMITS, MB, Limits
-from lookfirst.core.errors import FetchError
+from lookfirst.core.errors import DownloadTooBigError, FetchError
 
 GITHUB_API_HOST = "api.github.com"
 USER_AGENT = f"lookfirst/{__version__}"
@@ -161,7 +161,9 @@ def _raise_for_status(response: httpx.Response, what: str, not_found_hint: str |
 def _check_declared_size(response: httpx.Response, cap: int, what: str) -> None:
     declared = response.headers.get("content-length", "")
     if declared.isdigit() and int(declared) > cap:
-        raise FetchError(f"{what} is larger than {cap // MB} MB, so lookfirst didn't download it.")
+        raise DownloadTooBigError(
+            f"{what} is larger than {cap // MB} MB, so lookfirst didn't download it."
+        )
 
 
 _KEPT_HEADERS = frozenset(
@@ -276,7 +278,9 @@ def download(
             for chunk in response.iter_bytes():
                 size += len(chunk)
                 if size > cap:
-                    raise FetchError(f"{what} is larger than {cap // MB} MB, so lookfirst stopped.")
+                    raise DownloadTooBigError(
+                        f"{what} is larger than {cap // MB} MB, so lookfirst stopped."
+                    )
                 for h in hashes.values():
                     h.update(chunk)
                 out.write(chunk)
