@@ -1,6 +1,6 @@
 [project]
 name = "lookfirst"
-version = "0.1.0"
+version = "0.1.1"
 description = "Check a GitHub repo, shell one-liner or package before you or your AI agent runs it."
 readme = "README.md"
 license = "Apache-2.0"
@@ -53,7 +53,7 @@ build-backend = "uv_build"
 # Cooldown: only use package versions published at least 14 days before
 # this date was last moved. Brand-new releases are when hijacked packages
 # do their damage. Move it forward deliberately when updating dependencies.
-exclude-newer = "2026-10-23T00:00:00Z"
+exclude-newer = "2026-11-05T00:00:00Z"
 
 [tool.uv.build-backend]
 module-root = ""

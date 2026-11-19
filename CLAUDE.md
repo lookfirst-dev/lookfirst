@@ -100,7 +100,7 @@ scripts/        record_fixtures.py  export_schema.py  build_popular_index.py  be
 data/           local data, gitignored except data/seed/ (the trending archive goes there when added)
 tests/          conftest.py (no network, no real tokens, host canary)  helpers.py
                 fixtures/ (harmless fakes, recorded API responses, lookalike pairs, injection README)
-docs/           SPEC.md  KICKOFF.md  THREAT_MODEL.md  PLAN-v0.1.md  RELEASE-NOTES-0.1.0.md  LAUNCH.md
+docs/           SPEC.md  KICKOFF.md  THREAT_MODEL.md  PLAN-v0.1.md  RELEASE-NOTES-0.1.0.md  RELEASE-NOTES-0.1.1.md  LAUNCH.md
                 schema/report-1.0.json (generated)  demo/ (the README's images and how they were made)
 THIRD_PARTY.md  IDEAS.md  README.md  LICENSE
 ```
