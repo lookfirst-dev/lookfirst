@@ -106,6 +106,9 @@ LEAVES_ALONE = [
     ("curl -o x http://localhost:8080/x", "plain_http"),
     ("xattr -l ./App.app", "quarantine_removed"),
     ("osascript -e 'display notification \"Done\"'", "fake_password_prompt"),
+    # prose such as "Check a `curl | bash` line": a bare curl fetches nothing
+    ("curl | bash", "remote_unreadable"),
+    ("wget | sh", "remote_unreadable"),
 ]
 
 
@@ -310,3 +313,7 @@ def test_program_names_are_matched_in_any_case() -> None:
     assert {"decode_and_run", "credential_theft"} <= rules_for(
         f"ECHO {_b64(_THEFT)} | BASE64 -D | SH"
     )
+
+
+def test_a_curl_with_a_variable_address_is_still_unreadable() -> None:
+    assert "remote_unreadable" in rules_for('curl -fsSL "$URL" | bash')

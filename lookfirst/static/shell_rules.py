@@ -334,6 +334,8 @@ def as_download(cmd: Command) -> Download | None:
     if not rest:
         return None
     name = basename(rest[0])
+    if name in ("curl", "wget") and len(rest) == 1:
+        return None  # a bare `curl` fetches nothing: prose like "a `curl | bash` line"
     if name == "curl":
         opts, words = _options(rest[1:], _CURL_SHORT_VALUE, _CURL_LONG_VALUE)
         urls = [u for u in (_url_like(w) for w in words) if u]

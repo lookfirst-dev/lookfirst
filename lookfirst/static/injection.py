@@ -63,13 +63,21 @@ _AI = (
     r"|LLMs?|large\s+language\s+models?|language\s+models?|chat\s?bots?"
 )
 _NAMES = r"Claude(?:\s+Code)?|ChatGPT|Copilot|Cursor|Gemini|Codex|Windsurf|Cline|Devin|Aider"
+# "Note for AI agents" counts as a label: at the start of a line or sentence, or followed by
+# a colon or dash ("Instructions for Claude: ..."). Mid-sentence it's usually prose about
+# agents ("AGENTS.md holds instructions for AI agents"), which READMEs say a lot.
+_LABEL = (
+    rf"\b(?:attention|note|message|instructions?|info|hint|important|reminder)\s*(?:for|to)\s+"
+    rf"(?:all\s+|any\s+|the\s+)?(?:{_AI}|{_NAMES}|agents?|assistants?|AIs?)\b"
+)
 _ADDRESSED = re.compile(
-    rf"\b(?:attention|note|message|instructions?|info|hint|important|reminder)\s*(?:for|to)\s+(?:all\s+|any\s+|the\s+)?(?:{_AI}|{_NAMES}|agents?|assistants?|AIs?)\b"
+    rf"(?:^|[.!?][ \t]+)[#>*_~ \t-]*{_LABEL}"  # one character class: no backtracking
+    rf"|{_LABEL}(?=[^.\n]{{0,40}}[:\u2014\u2013])"
     rf"|\bif\s+you\s+are\s+(?:an?\s+)?(?:{_AI}|{_NAMES}|AI|assistant|agent|bot|LLM)\b"
     rf"|\b(?:dear|hey|hi|hello|attention)\s+(?:{_AI}|{_NAMES}|AI)\b"
     rf"|(?:^|\n)\s*(?:[>*_-]\s*)*(?:{_AI}|{_NAMES})\s*[:,]"
     rf"|\b(?:{_AI})\s+(?:should|must|need\s+to|are\s+required\s+to|reading\s+this|processing\s+this)\b",
-    re.IGNORECASE,
+    re.IGNORECASE | re.MULTILINE,
 )
 # Text that tries to override an AI agent's instructions. Enough on its own.
 _OVERRIDE = re.compile(
@@ -91,11 +99,31 @@ _SECRECY = re.compile(
     r"(?=[ \t]*(?:$|[.,;:!?)—-])"
     r"|\s+(?:about|of|what|how|anything|this|these|you|we|when|where|why|whether"
     r"|that\s+(?:you|we|i|this|these))\b)"
+    # "Never ask the user before..." hides a step; "don't ask the user to paste it" doesn't.
     r"|\b(?:do\s+not|don'?t|never)\s+ask\s+(?:the\s+)?user\b"
+    r"(?=[ \t]*(?:$|[.,;:!?)\u2014-])"
+    r"|\s+(?:for\s+(?:permission|approval|confirmation|consent)|before|first|whether|if|again))"
     r"|\b(?:do\s+not|don'?t|never)\s+mention\s+(?:this|it|these)\s+to\s+(?:the\s+)?user\b"
     r"|\bwithout\s+(?:asking|telling|informing|notifying|warning|confirming\s+with)\s+(?:the\s+)?user\b",
     re.IGNORECASE | re.MULTILINE,
 )
+_NEGATION = re.compile(r"\b(?:never|not|don'?t|no)\b", re.IGNORECASE)
+_CLAUSE_END = re.compile(r"[,.;:!?\n]")
+
+
+def _secrecy(text: str) -> re.Match[str] | None:
+    """The first phrase that keeps something from the user. "Never rewrite commits without
+    asking the user" is the opposite: a rule to ask first, so a negated "without" is skipped."""
+    for m in _SECRECY.finditer(text):
+        if m.group(0).lower().startswith("without"):
+            before = text[: m.start()]
+            ends = [e.end() for e in _CLAUSE_END.finditer(before)]
+            if _NEGATION.search(before[ends[-1] if ends else 0 :]):
+                continue
+        return m
+    return None
+
+
 _COMMAND = re.compile(
     r"\b(?:run|execute|exec|paste|type|launch|start|install)\b[^.\n]{0,80}\b(?:command|script|curl|wget|bash|sh|terminal|shell|npx|following)\b"
     r"|\bcurl\s[^|\n]*\|\s*(?:sudo\s+)?(?:ba|z)?sh\b"
@@ -133,7 +161,7 @@ def _directive(text: str, *, lenient: bool = False) -> re.Match[str] | None:
     """The match that makes this text an instruction aimed at AI agents, if any. In agent
     instruction files (lenient), asking the agent to run things is normal."""
     strong = _OVERRIDE.search(text)
-    secrecy = _SECRECY.search(text)
+    secrecy = _secrecy(text)
     if lenient:
         return strong or secrecy
     addressed = _ADDRESSED.search(text)
@@ -150,7 +178,7 @@ def _directive(text: str, *, lenient: bool = False) -> re.Match[str] | None:
 def _instruction_like(text: str) -> bool:
     return bool(
         _ADDRESSED.search(text)
-        or (_OVERRIDE.search(text) or _SECRECY.search(text))
+        or (_OVERRIDE.search(text) or _secrecy(text))
         or _COMMAND.search(text)
     )
 
@@ -158,7 +186,7 @@ def _instruction_like(text: str) -> bool:
 def _aimed_at_agents(text: str) -> bool:
     """For places people leave notes for each other (HTML comments, image descriptions):
     only text addressed to an AI, or trying to deceive one, counts."""
-    return bool(_ADDRESSED.search(text) or (_OVERRIDE.search(text) or _SECRECY.search(text)))
+    return bool(_ADDRESSED.search(text) or (_OVERRIDE.search(text) or _secrecy(text)))
 
 
 def _hidden_rule(rel: str, text: str) -> str:
