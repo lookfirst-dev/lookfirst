@@ -93,7 +93,7 @@ A fork is compared with its parent first, then an official project, then the mos
   - `AGENTS.md`, `CLAUDE.md`
   - `SKILL.md` files that tell an agent to run commands
 - **Prompt injection aimed at agents**, in READMEs, docs, code comments, issue templates and `SKILL.md`:
-  - instructions addressed to AI assistants, such as asking it to run commands, fetch URLs or ignore earlier instructions
+  - instructions addressed to AI assistants, such as asking it to run commands, fetch URLs or drop the instructions it was given
   - hidden text: HTML comments holding instructions, zero-width and bidirectional Unicode characters, long base64 blobs in Markdown
   - instructions placed in image alt text
 - **Notes in issue and pull-request forms** (decided 13 Nov 2026): hidden text in GitHub's issue or pull-request forms that only addresses AI is a medium note, not high. Projects such as axios hide a line there to spot AI-written reports, and an agent installing the project never reads those forms. Hidden text there that tells an agent to run something, drop its instructions or keep secrets stays high.

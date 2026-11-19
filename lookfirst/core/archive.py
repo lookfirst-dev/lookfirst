@@ -18,7 +18,7 @@ from pathlib import Path, PurePosixPath
 from typing import IO, Literal
 
 from lookfirst.core.config import DEFAULT_LIMITS, MB, Limits
-from lookfirst.core.errors import UnsafeArchiveError
+from lookfirst.core.errors import ArchiveTooBigError, UnsafeArchiveError
 
 FILE_MODE = 0o644
 _CHUNK = 1024 * 1024
@@ -102,7 +102,7 @@ def _is_tar(archive: Path) -> bool:
 def _count(manifest: ArchiveManifest, limits: Limits) -> None:
     manifest._entries += 1
     if manifest._entries > limits.max_entries:
-        raise UnsafeArchiveError(
+        raise ArchiveTooBigError(
             f"The archive has more than {limits.max_entries:,} entries, "
             "so lookfirst stopped unpacking it."
         )
@@ -136,7 +136,7 @@ def _write_file(
             size += len(chunk)
             manifest.total_bytes += len(chunk)
             if manifest.total_bytes > limits.max_unpacked_bytes:
-                raise UnsafeArchiveError(
+                raise ArchiveTooBigError(
                     f"The archive unpacks to more than {limits.max_unpacked_bytes // MB} MB, "
                     "so lookfirst stopped unpacking it."
                 )

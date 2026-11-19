@@ -15,7 +15,7 @@ import httpx
 
 from lookfirst.core.archive import unpack
 from lookfirst.core.config import Limits
-from lookfirst.core.errors import FetchError, TargetError
+from lookfirst.core.errors import ArchiveTooBigError, DownloadTooBigError, FetchError, TargetError
 from lookfirst.core.http import download, get_json
 from lookfirst.core.textsafe import one_line
 from lookfirst.targets.models import ResolvedTarget, TargetSpec
@@ -138,17 +138,21 @@ def fetch_github(
         )
 
     archive = workdir / "source.tar.gz"
-    download(
-        client,
-        f"{API}/repos/{full_name}/tarball/{sha}",
-        archive,
-        allowed_hosts=_TARBALL_HOSTS,
-        headers=_HEADERS,
-        what=f"The code of {full_name}",
-        limits=limits,
-    )
     src = workdir / "src"
-    manifest = unpack(archive, src, limits=limits)
+    try:
+        download(
+            client,
+            f"{API}/repos/{full_name}/tarball/{sha}",
+            archive,
+            allowed_hosts=_TARBALL_HOSTS,
+            headers=_HEADERS,
+            what=f"The code of {full_name}",
+            limits=limits,
+        )
+        manifest = unpack(archive, src, limits=limits)
+    except (ArchiveTooBigError, DownloadTooBigError) as exc:
+        exc.hint = _too_big_hint(full_name)
+        raise
     archive.unlink()
     committed = (commit.get("commit") or {}).get("committer") or {}
     return ResolvedTarget(
@@ -157,4 +161,15 @@ def fetch_github(
         resolved=f"{full_name}@{sha}",
         metadata={"repo": meta, "commit": {"sha": sha, "date": committed.get("date")}},
         manifest=manifest,
+    )
+
+
+def _too_big_hint(full_name: str) -> str:
+    """What to do when a repo is too big to check from GitHub in one go. Cloning doesn't run
+    the project's code; lookfirst then reads the folder, which has no size limit."""
+    folder = full_name.split("/", 1)[1]
+    return (
+        "This repo is too big to check straight from GitHub. Check a copy of it instead:\n"
+        f"  git clone --depth 1 https://github.com/{full_name}\n"
+        f"  lookfirst check ./{folder}"
     )
