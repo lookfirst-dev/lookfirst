@@ -111,15 +111,22 @@ _NEGATION = re.compile(r"\b(?:never|not|don'?t|no)\b", re.IGNORECASE)
 _CLAUSE_END = re.compile(r"[,.;:!?\n]")
 
 
-def _secrecy(text: str) -> re.Match[str] | None:
+_UNASKED = re.compile(r"\bask|\bconfirming\b", re.IGNORECASE)
+
+
+def _secrecy(text: str, *, hiding_only: bool = False) -> re.Match[str] | None:
     """The first phrase that keeps something from the user. "Never rewrite commits without
-    asking the user" is the opposite: a rule to ask first, so a negated "without" is skipped."""
+    asking the user" is the opposite: a rule to ask first, so a negated "without" is skipped.
+    With hiding_only, acting without asking ("don't ask the user before closing") doesn't
+    count, only hiding things ("don't tell the user")."""
     for m in _SECRECY.finditer(text):
         if m.group(0).lower().startswith("without"):
             before = text[: m.start()]
             ends = [e.end() for e in _CLAUSE_END.finditer(before)]
             if _NEGATION.search(before[ends[-1] if ends else 0 :]):
                 continue
+        if hiding_only and _UNASKED.search(m.group(0)):
+            continue
         return m
     return None
 
@@ -159,11 +166,12 @@ def _line(text: str, offset: int) -> int:
 
 def _directive(text: str, *, lenient: bool = False) -> re.Match[str] | None:
     """The match that makes this text an instruction aimed at AI agents, if any. In agent
-    instruction files (lenient), asking the agent to run things is normal."""
+    instruction files (lenient), asking the agent to run things is normal, and so is
+    telling it to act without asking (reported apart, as a note); hiding things isn't."""
     strong = _OVERRIDE.search(text)
-    secrecy = _secrecy(text)
     if lenient:
-        return strong or secrecy
+        return strong or _secrecy(text, hiding_only=True)
+    secrecy = _secrecy(text)
     addressed = _ADDRESSED.search(text)
     command = _COMMAND.search(text)
     if strong:
@@ -268,11 +276,13 @@ def _visible(text: str, rel: str, out: Collector, *, lenient: bool) -> None:
     for m in re.finditer(r"(?:[^\n]+\n?)+", text):  # paragraphs
         para = m.group(0)
         hit = _directive(para, lenient=lenient)
+        rule = "injection.agent_directed"
+        if hit is None and lenient:
+            hit = _secrecy(para)  # only acting without asking is left
+            rule = "injection.acts_without_asking"
         if hit:
             start = m.start() + hit.start()
-            out.add(
-                "injection.agent_directed", path=rel, line=_line(text, start), excerpt=para.strip()
-            )
+            out.add(rule, path=rel, line=_line(text, start), excerpt=para.strip())
 
 
 def _characters(
