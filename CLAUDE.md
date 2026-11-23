@@ -96,7 +96,8 @@ npm/            the npm pointer package: only prints how to install lookfirst; n
                 ISSUE_TEMPLATE/ (forms for misses and false alarms)
 SECURITY.md     how to report a flaw in lookfirst privately
 scripts/        record_fixtures.py  export_schema.py  build_popular_index.py  bench_hook.py
-                time_check.py (live timing for SPEC section 12)  make_demo_images.py (docs/demo/)
+                time_check.py (live timing for SPEC section 12)  benchmark.py (40 well-known repos)
+                make_demo_images.py (docs/demo/)
 data/           local data, gitignored except data/seed/ (the trending archive goes there when added)
 tests/          conftest.py (no network, no real tokens, host canary)  helpers.py
                 fixtures/ (harmless fakes, recorded API responses, lookalike pairs, injection README)
@@ -118,6 +119,7 @@ Keep this section accurate whenever scripts change.
 - the hook: `uv run lookfirst hook` reads Claude Code's hook JSON on stdin (the plugin runs it); the MCP server: `uv run lookfirst mcp`
 - time the hook: `uv run python scripts/bench_hook.py` (add `--installs` to also time install commands, which uses the network)
 - time full checks on 12 well-known repos (uses the network and your GitHub token): `uv run python scripts/time_check.py`
+- before a release, check 40 well-known repos for false alarms and slow checks (about 15 minutes): `uv run python scripts/benchmark.py --save before.json`, then `--compare before.json` after a change
 - remake the README's demo images (the sandbox one needs Docker): `uv run python scripts/make_demo_images.py`
 - check the plugin and the marketplace file: `claude plugin validate plugin` and `claude plugin validate .`
 - try the plugin from this checkout: `uv tool install --editable .`, then in a scratch folder `claude plugin marketplace add <this folder> --scope project` and `claude plugin install lookfirst@lookfirst --scope project`
