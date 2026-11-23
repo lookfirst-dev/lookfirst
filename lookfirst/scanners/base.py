@@ -10,16 +10,21 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
+import threading
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
 TIME_LIMIT = 120  # seconds, for each run
+_RUNNING: set[subprocess.Popen[bytes]] = set()
+_LOCK = threading.Lock()
 MAX_OUTPUT = 128 * 1024 * 1024  # osv-scanner's JSON for a big monorepo runs to tens of MB
 _STDERR_TAIL = 1024 * 1024  # progress lines; osv-scanner says there how many packages it sent
 # Where tools are usually installed, besides PATH.
@@ -93,20 +98,34 @@ def run_tool(
     """Run the tool and return what it printed. Raises ToolFailed if it couldn't finish."""
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
-            proc = subprocess.run(  # noqa: S603 - a scanner the user installed, list args, no shell
+            # Its own process group, so stopping it also stops the programs it started
+            # (GuardDog runs semgrep).
+            proc = subprocess.Popen(  # noqa: S603 - a scanner the user installed, list args, no shell
                 [str(executable), *args],
                 stdin=subprocess.DEVNULL,
                 stdout=out,
                 stderr=err,
                 env=tool_env(),
                 cwd=cwd,
-                timeout=timeout,
-                check=False,
+                start_new_session=True,
             )
-        except subprocess.TimeoutExpired as exc:
-            raise ToolFailed(f"didn't finish within {_duration(timeout)}") from exc
         except OSError as exc:
             raise ToolFailed(f"it couldn't be started ({exc.strerror or exc})") from exc
+        with _LOCK:
+            _RUNNING.add(proc)
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            _stop_group(proc)
+            raise ToolFailed(f"didn't finish within {_duration(timeout)}") from exc
+        except BaseException:
+            _stop_group(proc)
+            raise
+        finally:
+            with _LOCK:
+                _RUNNING.discard(proc)
+        if proc.returncode < 0 and -proc.returncode == signal.SIGKILL:
+            raise ToolFailed("was stopped")
         if os.fstat(out.fileno()).st_size > MAX_OUTPUT:
             raise ToolFailed("its output was too large to read")
         out.seek(0)
@@ -115,6 +134,21 @@ def run_tool(
         err.seek(max(0, size - _STDERR_TAIL))
         stderr = err.read().decode("utf-8", "replace")
     return ToolOutput(proc.returncode, stdout, stderr)
+
+
+def stop_all() -> None:
+    """Stop every tool still running, and whatever they started. Tools run in their own
+    process group, so Ctrl-C in the terminal doesn't reach them: call this when interrupted."""
+    with _LOCK:
+        running = list(_RUNNING)
+    for proc in running:
+        _stop_group(proc)
+
+
+def _stop_group(proc: subprocess.Popen[bytes]) -> None:
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(proc.pid, signal.SIGKILL)
+    proc.wait()
 
 
 @cache

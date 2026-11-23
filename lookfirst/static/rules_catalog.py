@@ -434,6 +434,15 @@ RULES: dict[str, Rule] = {
             "for you here, read the text below first.",
         ),
         (
+            "acts_without_asking",
+            M,
+            "Tells AI agents to act without asking you",
+            "A file of instructions for AI agents tells them to do something without asking "
+            "you first. Skills often say this for routine steps, but an agent following it "
+            "won't stop to check with you.",
+            "Read the text below before letting an AI agent use these instructions.",
+        ),
+        (
             "agent_directed",
             H,
             "Tells AI agents to run commands or ignore their instructions",

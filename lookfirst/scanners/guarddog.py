@@ -20,6 +20,10 @@ from lookfirst.static.files import exists
 from lookfirst.targets.models import ResolvedTarget
 
 INSTALL_HINT = "uv tool install --python 3.12 guarddog"
+# GuardDog's patterns never change the verdict, and on a big repo it can take minutes
+# (68 seconds of a 106-second check of microsoft/vscode). It runs alongside lookfirst's own
+# checks and stops at this limit; the report then says it didn't finish.
+TIME_LIMIT = 20  # seconds
 _RULE = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 _SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
@@ -103,7 +107,9 @@ def ecosystems_for(target: ResolvedTarget) -> list[str]:
 
 
 def scan(executable: Path, ecosystem: str, folder: Path) -> list[Risk]:
-    out = run_tool(executable, [ecosystem, "scan", str(folder), "--output-format=json"])
+    out = run_tool(
+        executable, [ecosystem, "scan", str(folder), "--output-format=json"], timeout=TIME_LIMIT
+    )
     text = out.stdout.strip()
     if out.returncode != 0 and not text.startswith("{"):
         detail = one_line(last_line(out.stderr), 120)
