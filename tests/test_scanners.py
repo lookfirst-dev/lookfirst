@@ -6,13 +6,16 @@ from __future__ import annotations
 
 import json
 import os
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 from conftest import guarddog_output, osv_output
 
 from lookfirst.pipeline import run_check
-from lookfirst.scanners import base
+from lookfirst.scanners import base, guarddog
 from lookfirst.scanners.base import ToolFailed, ToolOutput, find_tool, run_tool, tool_env
 from lookfirst.scanners.check import elsewhere, run_package_check
 from lookfirst.scanners.guarddog import WORDING, ecosystems_for
@@ -64,6 +67,59 @@ def test_a_tool_that_runs_too_long_is_stopped(tmp_path: Path) -> None:
     slow.chmod(0o755)
     with pytest.raises(ToolFailed, match="didn't finish within 1 second"):
         run_tool(slow, [], timeout=1)
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_a_tool_stopped_for_time_takes_the_programs_it_started_with_it(tmp_path: Path) -> None:
+    """GuardDog runs semgrep: stopping GuardDog alone would leave semgrep running."""
+    pid_file = tmp_path / "child.pid"
+    slow = tmp_path / "parent-tool"  # a stand-in written by this test, not a fixture
+    slow.write_text(f"#!/bin/sh\nsleep 30 &\necho $! > {pid_file}\nwait\n")
+    slow.chmod(0o755)
+    with pytest.raises(ToolFailed, match="didn't finish within 1 second"):
+        run_tool(slow, [], timeout=1)
+    child = int(pid_file.read_text())
+    deadline = time.monotonic() + 5
+    while _alive(child) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not _alive(child)
+
+
+def test_stop_all_ends_tools_still_running(tmp_path: Path) -> None:
+    """Tools run in their own process group, so Ctrl-C doesn't reach them; stop_all does."""
+    slow = tmp_path / "slow-tool"
+    slow.write_text("#!/bin/sh\nsleep 30\n")
+    slow.chmod(0o755)
+    with ThreadPoolExecutor(1) as pool:
+        job = pool.submit(run_tool, slow, [], timeout=60)
+        deadline = time.monotonic() + 5
+        while not base._RUNNING and time.monotonic() < deadline:
+            time.sleep(0.02)
+        start = time.monotonic()
+        base.stop_all()
+        with pytest.raises(ToolFailed, match="was stopped"):
+            job.result(timeout=10)
+    assert time.monotonic() - start < 5
+    assert not base._RUNNING
+
+
+def test_guarddog_has_a_shorter_time_limit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    seen = {}
+
+    def fake_run(executable: Path, args: list[str], *, timeout: int = 0, cwd=None) -> ToolOutput:
+        seen["timeout"] = timeout
+        return ToolOutput(0, '{"risks": []}', "")
+
+    monkeypatch.setattr(guarddog, "run_tool", fake_run)
+    assert guarddog.scan(Path("/bin/true"), "npm", tmp_path) == []
+    assert seen["timeout"] == guarddog.TIME_LIMIT == 20
 
 
 def test_tool_output_is_captured_without_a_shell(tmp_path: Path) -> None:
@@ -449,3 +505,31 @@ def test_fixed_versions_sort_by_number() -> None:
 
     versions = ["2.15.1", "2.15.0", "2.20.0", "2.9", "10.0.0-rc1"]
     assert sorted(versions, key=version_key) == ["2.9", "2.15.0", "2.15.1", "2.20.0", "10.0.0-rc1"]
+
+
+def test_scanners_run_while_lookfirsts_own_checks_do(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from lookfirst import pipeline
+    from lookfirst.scanners.check import PackageOutcome
+
+    real_static = pipeline.run_static_checks
+    threads = {}
+
+    def slow_static(target, reader):
+        threads["static"] = threading.get_ident()
+        time.sleep(0.6)
+        return real_static(target, reader)
+
+    def slow_package(target):
+        threads["package"] = threading.get_ident()
+        time.sleep(0.6)
+        return PackageOutcome()
+
+    monkeypatch.setattr(pipeline, "run_static_checks", slow_static)
+    monkeypatch.setattr(pipeline, "run_package_check", slow_package)
+    (tmp_path / "README.md").write_text("# Tool\n")
+    start = time.monotonic()
+    run_check(str(tmp_path), cwd=tmp_path)
+    assert time.monotonic() - start < 1.1  # one after the other would take 1.2 s or more
+    assert threads["static"] != threads["package"]

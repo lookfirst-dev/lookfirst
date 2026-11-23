@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -13,6 +15,7 @@ from lookfirst.identity.check import IdentityOutcome, check_identity
 from lookfirst.identity.github import GitHubData
 from lookfirst.identity.popular_index import load_index
 from lookfirst.sandbox.runner import SandboxOptions, SandboxOutcome, run_sandbox
+from lookfirst.scanners.base import stop_all
 from lookfirst.scanners.check import run_package_check
 from lookfirst.static.checks import run_static_checks
 from lookfirst.static.fetch import RemoteReader
@@ -52,7 +55,14 @@ def run_check(
     # One-liners are compared with official sites offline, so they need no GitHub token.
     token = None if spec.kind == "oneliner" else github_token()
     try:
-        with open_target(spec, limits=limits, token=token) as target:
+        with (
+            open_target(spec, limits=limits, token=token) as target,
+            ThreadPoolExecutor(1) as pool,
+            _stop_tools_on_error(),
+        ):
+            # The outside scanners only read the files, so they run while lookfirst's own
+            # checks do. The pool finishes before the target's folder is deleted.
+            package_job = pool.submit(run_package_check, target)
             result = run_static_checks(target, reader)
             if result.core_unreadable:
                 raise CouldntCheckError(
@@ -62,7 +72,7 @@ def run_check(
                     "Check your connection and try again.",
                 )
             identity = _identity(target, token, now or datetime.now(UTC))
-            package = run_package_check(target)
+            package = package_job.result()
             dry_run = (
                 run_sandbox(target, sandbox_options or SandboxOptions(), on_build=on_sandbox_build)
                 if sandbox
@@ -120,6 +130,17 @@ def run_check(
     finally:
         if own_reader:
             reader.close()
+
+
+@contextmanager
+def _stop_tools_on_error() -> Iterator[None]:
+    """If the check stops early (an error, or Ctrl-C), stop the scanners still running
+    rather than wait for them."""
+    try:
+        yield
+    except BaseException:
+        stop_all()
+        raise
 
 
 def _identity(target: ResolvedTarget, token: str | None, now: datetime) -> IdentityOutcome:
