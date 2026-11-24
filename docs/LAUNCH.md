@@ -11,6 +11,8 @@ lookfirst 0.1.0 is out:
 - **npm:** `lookfirst` 0.1.0, the pointer package from `npm/`. It installs and runs nothing.
 - **The plugin:** installs from GitHub with `/plugin marketplace add lookfirst-dev/lookfirst`, then `/plugin install lookfirst@lookfirst`.
 
+Released since: **0.1.1** (20 Nov) and **0.2.0** (23 Nov), each on PyPI and as a GitHub release; their notes are in `docs/RELEASE-NOTES-<version>.md`. The npm pointer stays at 0.1.0, since it only says how to install lookfirst.
+
 Still to do: **announce** (you). The launch checklist in `docs/KICKOFF.md` has the channels and the timing advice. For the first 48 hours, answer every issue.
 
 ## Security reports
@@ -40,7 +42,7 @@ If the hook ever let it through, the fixture's script would only create the cana
 ## Releasing a new version
 
 1. Make the change on a branch, open a pull request, let CI pass, and merge, as for any change.
-2. On a branch, set the new version in `pyproject.toml` and `plugin/.claude-plugin/plugin.json` (and `npm/package.json` only if the pointer itself changes), run `uv lock`, and add `docs/RELEASE-NOTES-<version>.md`. Use 0.1.1 for fixes and 0.2.0 for new features. Merge it.
+2. On a branch, set the new version in `pyproject.toml` and `plugin/.claude-plugin/plugin.json` (and `npm/package.json` only if the pointer itself changes), run `uv lock`, and add `docs/RELEASE-NOTES-<version>.md`. Raise the last number for fixes (0.2.0 to 0.2.1) and the middle one for new features (0.2.0 to 0.3.0). Merge it.
 3. Tag `main` with `v<version>` and push the tag. The Release workflow starts. In the repo's Actions tab, open the "Release" run; when it reaches "Build and publish to PyPI", click **Review deployments**, tick `pypi`, then **Approve and deploy**. The workflow then makes the GitHub release from the release notes.
 4. People update with `uv tool upgrade lookfirst`. The plugin updates from GitHub when people update it in Claude Code.
 
