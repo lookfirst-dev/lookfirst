@@ -17,6 +17,7 @@ When the archive is too big, lookfirst asks GitHub for the repo's list of files 
    - agent instruction files anywhere: `SKILL.md`, `AGENTS.md`, `CLAUDE.md`;
    - package manifests and lockfiles anywhere (`package.json`, lockfiles, `pyproject.toml`, `setup.py`, `requirements*.txt`, `Cargo.toml`, `go.mod` and others), shallowest first;
    - install scripts anywhere (`install*.sh`, `setup*.sh`).
+   Package files and scripts in test, example and benchmark folders come last; bun's `test` folder alone has about 4,900 `package.json` files.
    Measured with an early version of these rules: node 591 files, next.js 1,209, supabase 252, TypeScript 66.
 3. **Download them**, at most 2,000 files and 100 MB, several at a time, from the same commit. Public repos download from `raw.githubusercontent.com`, which doesn't use up GitHub's hourly API limit. lookfirst never sends a token there. Private repos download through `api.github.com` with the user's token, as today.
 4. **Run the usual checks** on that folder: agent settings, install paths, hidden instructions, the package scanners and identity.
@@ -40,7 +41,7 @@ What this misses: hidden instructions or tricky characters in ordinary source fi
 - Paths from GitHub's file list go through the same checks as archive entries: nothing outside the folder, no names that differ only in letter case. Links are recorded, not followed, and submodules are skipped.
 - A token goes only to `api.github.com`, never to `raw.githubusercontent.com`.
 - The file list and every file are untrusted data, capped in count and size.
-- If GitHub cuts the file list short (it does above about 100,000 entries or 7 MB, as for TypeScript), lookfirst lists the agent folders and the top folder separately, and the "not checked" line says the list was incomplete.
+- If GitHub cuts the file list short (it does above about 100,000 entries or 7 MB), lookfirst lists the top folder, then each top-level folder on its own, agent folders first, up to 30 folders. Any folder still cut short is named in the "not checked" line.
 
 ## Work
 
@@ -51,3 +52,19 @@ What this misses: hidden instructions or tricky characters in ordinary source fi
 5. **Release 0.3.0** with release notes, as before.
 
 Estimate: two to three working sessions, each ending in a pull request you merge.
+
+## Progress
+
+**Step 1 done (24 Nov 2026):** `lookfirst/targets/github_tree.py` lists the files and picks them, with 13 tests on made-up GitHub answers. It isn't used by `lookfirst check` yet. Measured on the seven big repos:
+
+| Repo | Files listed | Picked | MB | Listing |
+|---|---|---|---|---|
+| webpack | 39,599 | 197 | 2.6 | `test` cut short |
+| bun | 47,332 | 2,000 (3,252 left out, nearly all in `test`) | 2.6 | `test` cut short |
+| node | 57,478 | 236 | 2.4 | complete |
+| TypeScript | 53,107 | 66 | 0.5 | `tsc` cut short |
+| supabase | 18,388 | 254 | 2.4 | complete |
+| next.js | 35,160 | 960 | 9.0 | complete |
+| rust | 64,874 | 530 | 2.7 | complete |
+
+GitHub cut the whole list short for webpack, bun, TypeScript and rust, so the folder-by-folder fallback matters. It used 6 to 17 extra GitHub API calls on those repos, which takes about 6 to 11 seconds. Without a token, GitHub allows 60 calls an hour. A check of such a repo then uses 10 to 21 of them, and 34 at most, against 2 for a repo that downloads whole.
