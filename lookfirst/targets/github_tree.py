@@ -88,8 +88,10 @@ _SAMPLES = re.compile(
 )
 
 MAX_FILES = 2_000
+MAX_SAMPLE_FILES = 300  # package files and scripts in test, example and benchmark folders
 MAX_BYTES = 100 * MB
 MAX_FILE_BYTES = 20 * MB
+_SAMPLE_RANK = 5
 
 
 @dataclass(frozen=True)
@@ -215,13 +217,14 @@ def _rank(path: str) -> int | None:
         rank = 4
     else:
         return None
-    return 5 if _SAMPLES.search(path) else rank
+    return _SAMPLE_RANK if _SAMPLES.search(path) else rank
 
 
 def pick_files(
     tree: RepoTree,
     *,
     max_files: int = MAX_FILES,
+    max_samples: int = MAX_SAMPLE_FILES,
     max_bytes: int = MAX_BYTES,
     max_file_bytes: int = MAX_FILE_BYTES,
 ) -> Picked:
@@ -234,18 +237,25 @@ def pick_files(
             wanted.append((rank, f.path.count("/"), f.path, f))
     wanted.sort(key=lambda w: w[:3])
     chosen: list[TreeFile] = []
-    total = left_out = 0
-    for *_, f in wanted:
-        if f.size > max_file_bytes or len(chosen) >= max_files or total + f.size > max_bytes:
+    total = left_out = samples = 0
+    for rank, _, _, f in wanted:
+        over = (
+            f.size > max_file_bytes
+            or len(chosen) >= max_files
+            or total + f.size > max_bytes
+            or (rank == _SAMPLE_RANK and samples >= max_samples)
+        )
+        if over:
             left_out += 1
             continue
         chosen.append(f)
         total += f.size
+        samples += rank == _SAMPLE_RANK
     return Picked(chosen, total, left_out)
 
 
 MAX_LINKS = 200
-_WORKERS = 8
+_WORKERS = 16
 _SLACK = 64 * 1024
 
 

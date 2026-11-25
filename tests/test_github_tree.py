@@ -173,6 +173,17 @@ def test_package_files_in_tests_and_examples_come_last() -> None:
     assert [f.path for f in picked.files] == ["pkg/b/package.json", "examples/demo/package.json"]
 
 
+def test_test_and_example_package_files_have_their_own_cap() -> None:
+    tree = files(*[f"test/case{i}/package.json" for i in range(5)], "pkg/a/package.json")
+    picked = pick_files(tree, max_samples=2)
+    assert [f.path for f in picked.files] == [
+        "pkg/a/package.json",
+        "test/case0/package.json",
+        "test/case1/package.json",
+    ]
+    assert picked.left_out == 3
+
+
 def test_the_size_caps() -> None:
     tree = RepoTree(
         files=[TreeFile("huge.bin", 50), TreeFile("README.md", 10), TreeFile("go.mod", 10)]
