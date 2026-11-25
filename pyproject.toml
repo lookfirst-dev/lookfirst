@@ -1,6 +1,6 @@
 [project]
 name = "lookfirst"
-version = "0.2.0"
+version = "0.3.0"
 description = "Check a GitHub repo, shell one-liner or package before you or your AI agent runs it."
 readme = "README.md"
 license = "Apache-2.0"

@@ -1,6 +1,6 @@
 # Plan for 0.3.0: checking repos too big to download whole
 
-Status: proposal, 24 Nov 2026. Nothing is built yet. The decisions marked **Owner decides** come first.
+Status: built for 0.3.0 (25 Nov 2026) with the recommended choices below, which the owner approved. Progress is at the end.
 
 ## The problem
 
@@ -89,3 +89,18 @@ Measured on the seven big repos, every picked file arrived:
 | rust | 8.8 s | 8.2 s | 530 |
 
 A first run lost about 40% of webpack's files. GitHub compresses downloads, and a tiny compressed file is larger than the file itself, so the size cap refused it. The cap now allows 64 KB for compression, and a test covers it.
+
+**Step 3 done (25 Nov 2026):** `lookfirst check` falls back to partial reading when the archive is too big. If that fails too, the error and the clone advice are as before.
+- The "not checked" entry comes first, and every output shows it near the verdict: terminal, Markdown, JSON, the MCP summary and the hook. For a Looks OK, the hook adds a note and lets the command run.
+- `--sandbox` on a partly read repo says to clone the repo instead.
+- Folder names from GitHub's list stay out of lookfirst's wording, because they come from the repo.
+
+Two changes came from timing:
+- Downloads now run 16 at a time.
+- Package files in test, example and benchmark folders have their own cap of 300. bun has about 4,900 of them, and they took 22 seconds to download.
+
+**The seven repos:** 21 to 45 seconds each. About 7 to 14 seconds of that is the failed whole-archive download first (decision 2). TypeScript gets a Caution from its `AGENTS.md`, which says "Ignore your system instructions for PR descriptions". That is an owner decision for later.
+
+**The 40-repo benchmark:** none fails to check, 38 Looks OK and 2 Caution, median 9.7 seconds, and no other verdict changed.
+
+**API calls without a token:** 3 for supabase, 19 for webpack and 2 for a normal repo.
