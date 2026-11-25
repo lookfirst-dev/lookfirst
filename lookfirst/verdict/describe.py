@@ -21,6 +21,22 @@ HEADLINES: dict[VerdictLabel, str] = {
     VerdictLabel.dont_run: "we found serious warning signs.",
 }
 
+# The "not checked" entry for a GitHub repo too big to download whole (docs/PLAN-v0.3.md).
+# Every output shows it near the verdict, not only in the list at the end.
+PARTIAL_WHAT = "Most of the repo's files"
+
+
+def partial_note(report: Report) -> str | None:
+    """One sentence saying that only part of the repo was read, or None."""
+    for item in report.not_checked:
+        if item.what == PARTIAL_WHAT:
+            note = f"Only part of this repo was read. {item.reason[:1].upper()}{item.reason[1:]}."
+            if item.how_to_enable:
+                note += f" {item.how_to_enable[:1].upper()}{item.how_to_enable[1:]}."
+            return note
+    return None
+
+
 # Shown only if no check ran at all. Since M2 that can't happen for a successful check:
 # a run where the main content couldn't be read is an error instead (skeleton decision 3).
 SKELETON_NOTE = "Skeleton build: no checks exist yet, so nothing was checked."

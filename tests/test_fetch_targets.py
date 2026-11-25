@@ -34,17 +34,48 @@ def test_github_repo(recorded_http, tmp_path: Path) -> None:
     assert not workdir.exists(), "the download folder is deleted afterwards"
 
 
-@pytest.mark.parametrize(
-    ("limits", "error"),
-    [
-        (Limits(max_entries=1), ArchiveTooBigError),
-        (Limits(max_download_bytes=10), DownloadTooBigError),
-    ],
-)
-def test_a_repo_too_big_to_check_says_how_to_check_a_copy(
+TOO_BIG = [
+    (Limits(max_entries=1), ArchiveTooBigError),
+    (Limits(max_download_bytes=10), DownloadTooBigError),
+]
+TREE_URL = f"https://api.github.com/repos/octocat/Hello-World/git/trees/{HELLO_SHA}?recursive=1"
+README_URL = f"https://raw.githubusercontent.com/octocat/Hello-World/{HELLO_SHA}/README"
+
+
+def _tree(request: httpx.Request) -> httpx.Response:
+    entries = [
+        {"path": "README", "mode": "100644", "type": "blob", "sha": "c" * 40, "size": 13},
+        {"path": "src/app.c", "mode": "100644", "type": "blob", "sha": "d" * 40, "size": 99},
+    ]
+    return httpx.Response(200, json={"tree": entries, "truncated": False})
+
+
+@pytest.mark.parametrize(("limits", "error"), TOO_BIG)
+def test_a_repo_too_big_to_download_is_read_in_part(
     recorded_http, tmp_path: Path, limits: Limits, error: type
 ) -> None:
-    recorded_http("github_hello_world")
+    recorded = recorded_http("github_hello_world")
+    recorded.override(TREE_URL, _tree)
+    recorded.override(README_URL, lambda r: httpx.Response(200, content=b"Hello World!\n"))
+    spec = parse_target("octocat/Hello-World", cwd=tmp_path)
+    with open_target(spec, limits=limits) as target:
+        assert target.partial is not None
+        assert (target.partial.read, target.partial.total) == (1, 2)
+        assert "git clone --depth 1 https://github.com/octocat/Hello-World" in (
+            target.partial.clone_hint
+        )
+        assert (target.root / "README").read_text() == "Hello World!\n"
+        assert not (target.root / "src").exists()  # not one of the files that matter
+        assert not (target.root.parent / "src").exists()  # the part-unpacked archive is gone
+        assert target.resolved == f"octocat/Hello-World@{HELLO_SHA}"
+
+
+@pytest.mark.parametrize(("limits", "error"), TOO_BIG)
+def test_when_reading_part_fails_too_it_says_how_to_check_a_copy(
+    recorded_http, tmp_path: Path, limits: Limits, error: type
+) -> None:
+    recorded = recorded_http("github_hello_world")
+    recorded.override(TREE_URL, lambda r: httpx.Response(500))
     spec = parse_target("octocat/Hello-World", cwd=tmp_path)
     with pytest.raises(error) as caught, open_target(spec, limits=limits):
         pass

@@ -33,6 +33,18 @@ class TargetSpec:
     command: str | None = None  # oneliner, mcp_command
 
 
+@dataclass(frozen=True)
+class PartialRead:
+    """A GitHub repo too big to download whole, so only the files that decide the verdict
+    were read (docs/PLAN-v0.3.md)."""
+
+    read: int  # files downloaded and read
+    total: int  # files in GitHub's list
+    left_out: int = 0  # files the rules wanted that the caps didn't allow
+    incomplete: tuple[str, ...] = ()  # top-level folders GitHub's list cut short
+    clone_hint: str = ""  # how to check every file instead
+
+
 @dataclass
 class ResolvedTarget:
     """A target that's been fetched (or found) and is ready to read. Never run."""
@@ -43,6 +55,7 @@ class ResolvedTarget:
     source_repo: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)  # raw registry data, untrusted
     manifest: ArchiveManifest | None = None
+    partial: PartialRead | None = None  # set when only part of a big repo was read
 
     def to_schema(self) -> Target:
         return Target(

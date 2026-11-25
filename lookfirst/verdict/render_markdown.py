@@ -24,6 +24,7 @@ from lookfirst.verdict.describe import (
     evidence_notes,
     headline_text,
     is_serious,
+    partial_note,
 )
 from lookfirst.verdict.schema import VERDICT_TEXT, Evidence, Finding, Report, VerdictLabel
 
@@ -169,6 +170,9 @@ def render_markdown(report: Report) -> str:
     ]
     if not report.checked:
         lines += [f"> {SKELETON_NOTE}", ""]
+    partial = partial_note(report)
+    if partial:
+        lines += [f"> {md_text(partial)}", ""]
     if report.summary:
         lines += ["Top reasons:", ""]
         lines += [f"{i}. {md_text(reason)}" for i, reason in enumerate(report.summary, start=1)]
