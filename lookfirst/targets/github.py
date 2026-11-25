@@ -8,6 +8,7 @@ fetched beyond that commit's files.
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 from urllib.parse import quote
 
@@ -18,7 +19,8 @@ from lookfirst.core.config import Limits
 from lookfirst.core.errors import ArchiveTooBigError, DownloadTooBigError, FetchError, TargetError
 from lookfirst.core.http import download, get_json
 from lookfirst.core.textsafe import one_line
-from lookfirst.targets.models import ResolvedTarget, TargetSpec
+from lookfirst.targets.github_tree import download_files, list_files, pick_files
+from lookfirst.targets.models import PartialRead, ResolvedTarget, TargetSpec
 
 API = "https://api.github.com"
 _API_HOSTS = frozenset({"api.github.com"})
@@ -139,6 +141,8 @@ def fetch_github(
 
     archive = workdir / "source.tar.gz"
     src = workdir / "src"
+    committed = (commit.get("commit") or {}).get("committer") or {}
+    metadata = {"repo": meta, "commit": {"sha": sha, "date": committed.get("date")}}
     try:
         download(
             client,
@@ -152,15 +156,59 @@ def fetch_github(
         manifest = unpack(archive, src, limits=limits)
     except (ArchiveTooBigError, DownloadTooBigError) as exc:
         exc.hint = _too_big_hint(full_name)
-        raise
+        # Too big to download whole: read the files that decide the verdict instead.
+        archive.unlink(missing_ok=True)
+        shutil.rmtree(src, ignore_errors=True)
+        try:
+            return _read_part(spec, client, full_name, sha, meta, metadata, workdir, limits)
+        except FetchError as partial_exc:
+            raise exc from partial_exc
     archive.unlink()
-    committed = (commit.get("commit") or {}).get("committer") or {}
     return ResolvedTarget(
         spec=spec,
         root=src / manifest.root if manifest.root else src,
         resolved=f"{full_name}@{sha}",
-        metadata={"repo": meta, "commit": {"sha": sha, "date": committed.get("date")}},
+        metadata=metadata,
         manifest=manifest,
+    )
+
+
+def _read_part(
+    spec: TargetSpec,
+    client: httpx.Client,
+    full_name: str,
+    sha: str,
+    meta: dict,
+    metadata: dict,
+    workdir: Path,
+    limits: Limits,
+) -> ResolvedTarget:
+    tree = list_files(client, full_name, sha, limits)
+    picked = pick_files(tree)
+    src = workdir / "part"
+    manifest = download_files(
+        client,
+        full_name,
+        sha,
+        tree,
+        picked,
+        src,
+        private=meta.get("private") is not False,  # unsure means the token's route
+        limits=limits,
+    )
+    return ResolvedTarget(
+        spec=spec,
+        root=src,
+        resolved=f"{full_name}@{sha}",
+        metadata=metadata,
+        manifest=manifest,
+        partial=PartialRead(
+            read=len(manifest.files),
+            total=len(tree.files),
+            left_out=picked.left_out,
+            incomplete=tuple(tree.incomplete),
+            clone_hint=_clone_steps(full_name),
+        ),
     )
 
 
@@ -173,3 +221,8 @@ def _too_big_hint(full_name: str) -> str:
         f"  git clone --depth 1 https://github.com/{full_name}\n"
         f"  lookfirst check ./{folder}"
     )
+
+
+def _clone_steps(full_name: str) -> str:
+    folder = full_name.split("/", 1)[1]
+    return f"git clone --depth 1 https://github.com/{full_name}, then lookfirst check ./{folder}"

@@ -1,6 +1,6 @@
 # Plan for 0.3.0: checking repos too big to download whole
 
-Status: proposal, 24 Nov 2026. Nothing is built yet. The decisions marked **Owner decides** come first.
+Status: built for 0.3.0 (25 Nov 2026) with the recommended choices below, which the owner approved. Progress is at the end.
 
 ## The problem
 
@@ -17,6 +17,7 @@ When the archive is too big, lookfirst asks GitHub for the repo's list of files 
    - agent instruction files anywhere: `SKILL.md`, `AGENTS.md`, `CLAUDE.md`;
    - package manifests and lockfiles anywhere (`package.json`, lockfiles, `pyproject.toml`, `setup.py`, `requirements*.txt`, `Cargo.toml`, `go.mod` and others), shallowest first;
    - install scripts anywhere (`install*.sh`, `setup*.sh`).
+   Package files and scripts in test, example and benchmark folders come last; bun's `test` folder alone has about 4,900 `package.json` files.
    Measured with an early version of these rules: node 591 files, next.js 1,209, supabase 252, TypeScript 66.
 3. **Download them**, at most 2,000 files and 100 MB, several at a time, from the same commit. Public repos download from `raw.githubusercontent.com`, which doesn't use up GitHub's hourly API limit. lookfirst never sends a token there. Private repos download through `api.github.com` with the user's token, as today.
 4. **Run the usual checks** on that folder: agent settings, install paths, hidden instructions, the package scanners and identity.
@@ -40,7 +41,7 @@ What this misses: hidden instructions or tricky characters in ordinary source fi
 - Paths from GitHub's file list go through the same checks as archive entries: nothing outside the folder, no names that differ only in letter case. Links are recorded, not followed, and submodules are skipped.
 - A token goes only to `api.github.com`, never to `raw.githubusercontent.com`.
 - The file list and every file are untrusted data, capped in count and size.
-- If GitHub cuts the file list short (it does above about 100,000 entries or 7 MB, as for TypeScript), lookfirst lists the agent folders and the top folder separately, and the "not checked" line says the list was incomplete.
+- If GitHub cuts the file list short (it does above about 100,000 entries or 7 MB), lookfirst lists the top folder, then each top-level folder on its own, agent folders first, up to 30 folders. Any folder still cut short is named in the "not checked" line.
 
 ## Work
 
@@ -51,3 +52,55 @@ What this misses: hidden instructions or tricky characters in ordinary source fi
 5. **Release 0.3.0** with release notes, as before.
 
 Estimate: two to three working sessions, each ending in a pull request you merge.
+
+## Progress
+
+**Step 1 done (24 Nov 2026):** `lookfirst/targets/github_tree.py` lists the files and picks them, with 13 tests on made-up GitHub answers. It isn't used by `lookfirst check` yet. Measured on the seven big repos:
+
+| Repo | Files listed | Picked | MB | Listing |
+|---|---|---|---|---|
+| webpack | 39,599 | 197 | 2.6 | `test` cut short |
+| bun | 47,332 | 2,000 (3,252 left out, nearly all in `test`) | 2.6 | `test` cut short |
+| node | 57,478 | 236 | 2.4 | complete |
+| TypeScript | 53,107 | 66 | 0.5 | `tsc` cut short |
+| supabase | 18,388 | 254 | 2.4 | complete |
+| next.js | 35,160 | 960 | 9.0 | complete |
+| rust | 64,874 | 530 | 2.7 | complete |
+
+GitHub cut the whole list short for webpack, bun, TypeScript and rust, so the folder-by-folder fallback matters. It used 6 to 17 extra GitHub API calls on those repos, which takes about 6 to 11 seconds. Without a token, GitHub allows 60 calls an hour. A check of such a repo then uses 10 to 21 of them, and 34 at most, against 2 for a repo that downloads whole.
+
+**Step 2 done (24 Nov 2026):** `download_files` downloads the picked files of the exact commit, eight at a time:
+- Public repos come from `raw.githubusercontent.com`, which never gets the token. Private repos come from `api.github.com`.
+- Each file must match the size in GitHub's list once unpacked, or it is deleted and listed as skipped.
+- Names that differ only in letter case are kept once.
+- Link targets are read as text, so the existing "link points outside" check works. Links are never made on disk.
+- If no file arrives, or most fail, the check stops with an error rather than judging a near-empty folder.
+
+Measured on the seven big repos, every picked file arrived:
+
+| Repo | Listing | Downloading | Files |
+|---|---|---|---|
+| webpack | 7.6 s | 0.9 s | 197 |
+| bun | 8.3 s | 8.1 s | 2,000 |
+| node | 5.8 s | 4.4 s | 236 |
+| TypeScript | 8.7 s | 1.2 s | 66 |
+| supabase | 2.3 s | 3.8 s | 254 |
+| next.js | 3.2 s | 16.3 s | 960 |
+| rust | 8.8 s | 8.2 s | 530 |
+
+A first run lost about 40% of webpack's files. GitHub compresses downloads, and a tiny compressed file is larger than the file itself, so the size cap refused it. The cap now allows 64 KB for compression, and a test covers it.
+
+**Step 3 done (25 Nov 2026):** `lookfirst check` falls back to partial reading when the archive is too big. If that fails too, the error and the clone advice are as before.
+- The "not checked" entry comes first, and every output shows it near the verdict: terminal, Markdown, JSON, the MCP summary and the hook. For a Looks OK, the hook adds a note and lets the command run.
+- `--sandbox` on a partly read repo says to clone the repo instead.
+- Folder names from GitHub's list stay out of lookfirst's wording, because they come from the repo.
+
+Two changes came from timing:
+- Downloads now run 16 at a time.
+- Package files in test, example and benchmark folders have their own cap of 300. bun has about 4,900 of them, and they took 22 seconds to download.
+
+**The seven repos:** 21 to 45 seconds each. About 7 to 14 seconds of that is the failed whole-archive download first (decision 2). TypeScript gets a Caution from its `AGENTS.md`, which says "Ignore your system instructions for PR descriptions". That is an owner decision for later.
+
+**The 40-repo benchmark:** none fails to check, 38 Looks OK and 2 Caution, median 9.7 seconds, and no other verdict changed.
+
+**API calls without a token:** 3 for supabase, 19 for webpack and 2 for a normal repo.

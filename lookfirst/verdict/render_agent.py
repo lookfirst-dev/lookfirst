@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from lookfirst.core.textsafe import one_line
 from lookfirst.pipeline import CHECKS
 from lookfirst.static.rules_catalog import RULES
-from lookfirst.verdict.describe import describe_target, evidence_notes
+from lookfirst.verdict.describe import describe_target, evidence_notes, partial_note
 from lookfirst.verdict.schema import (
     DISCLAIMER,
     SEVERITY_RANK,
@@ -152,6 +152,10 @@ def hook_answer(outcomes: Sequence[HookOutcome]) -> dict | None:
         }
     if problems:
         return {"systemMessage": problem_warning(problems)}
+    partial = [note for o in reports if o.report and (note := partial_note(o.report))]
+    if partial:
+        # Looks OK, but on part of a big repo: the command goes ahead, with a note.
+        return {"systemMessage": "lookfirst: Looks OK so far. " + " ".join(partial)}
     return None
 
 
@@ -176,6 +180,7 @@ def ask_reason(cautions: Sequence[HookOutcome], unreadable: Sequence[HookOutcome
         lines.append(f"lookfirst: Caution for {checked}.")
         command = cautions[0].target
         lines += [_reason(n, f, 100, command) for n, f in enumerate(_top(reports, 3), 1)]
+        lines += [note for r in reports if (note := partial_note(r))]
     for o in unreadable:
         lines.append(
             f"lookfirst: Caution. {one_line(o.unreadable or '', 300)} "
@@ -335,6 +340,9 @@ def agent_target(target: Target) -> AgentTarget:
 def summary_lines(report: Report) -> list[str]:
     """Three lines: the verdict and what was checked, why, and what to do."""
     first = f"{VERDICT_TEXT[report.verdict]}: {target_text(report.target)}."
+    partial = partial_note(report)
+    if partial:
+        first += f" {partial}"
     titles = [f.title for f in report.findings[:3]]
     serious = any(SEVERITY_RANK[f.severity] <= 1 for f in report.findings)
     if serious:

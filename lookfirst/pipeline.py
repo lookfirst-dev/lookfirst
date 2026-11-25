@@ -21,6 +21,7 @@ from lookfirst.static.checks import run_static_checks
 from lookfirst.static.fetch import RemoteReader
 from lookfirst.targets.base import open_target, parse_target
 from lookfirst.targets.models import ResolvedTarget
+from lookfirst.verdict.describe import PARTIAL_WHAT
 from lookfirst.verdict.schema import CheckKind, NotChecked, Report
 from lookfirst.verdict.scoring import build_report
 
@@ -73,18 +74,30 @@ def run_check(
                 )
             identity = _identity(target, token, now or datetime.now(UTC))
             package = package_job.result()
-            dry_run = (
-                run_sandbox(target, sandbox_options or SandboxOptions(), on_build=on_sandbox_build)
-                if sandbox
-                else SandboxOutcome()
-            )
+            if sandbox and target.partial:
+                # The sandbox installs the project, which needs every file.
+                dry_run = SandboxOutcome(
+                    gaps=[
+                        (
+                            CHECKS[CheckKind.sandbox],
+                            "the repo is too big to download whole, so it can't be installed",
+                            f"to run it: {target.partial.clone_hint} --sandbox",
+                        )
+                    ]
+                )
+            elif sandbox:
+                dry_run = run_sandbox(
+                    target, sandbox_options or SandboxOptions(), on_build=on_sandbox_build
+                )
+            else:
+                dry_run = SandboxOutcome()
             checked = (
                 ([CheckKind.identity] if identity.ran else [])
                 + result.checked
                 + ([CheckKind.package] if package.ran else [])
                 + ([CheckKind.sandbox] if dry_run.run else [])
             )
-            not_checked: list[NotChecked] = []
+            not_checked: list[NotChecked] = _partial_gap(target)
             for kind, label in CHECKS.items():
                 if kind is CheckKind.identity:
                     for what, reason, how in identity.gaps:
@@ -130,6 +143,31 @@ def run_check(
     finally:
         if own_reader:
             reader.close()
+
+
+def _partial_gap(target: ResolvedTarget) -> list[NotChecked]:
+    part = target.partial
+    if part is None:
+        return []
+    of = f"at least {part.total:,}" if part.incomplete else f"{part.total:,}"
+    reason = (
+        f"the repo is too big to download whole, so lookfirst read {part.read:,} of {of} "
+        "files: the top folder, agent settings, package files and install scripts"
+    )
+    if part.left_out:
+        reason += f"; {part.left_out:,} more package files and scripts were left out"
+    if part.incomplete:
+        # Folder names come from the repo, so they stay out of lookfirst's own wording.
+        n = len(part.incomplete)
+        reason += f"; GitHub's list of {n} {'folder' if n == 1 else 'folders'} was incomplete"
+    return [
+        NotChecked(
+            check=CheckKind.injection,
+            what=PARTIAL_WHAT,
+            reason=reason,
+            how_to_enable=f"to read every file: {part.clone_hint}",
+        )
+    ]
 
 
 @contextmanager

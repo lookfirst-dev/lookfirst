@@ -21,6 +21,7 @@ DOCS = [
     ROOT / "docs" / "RELEASE-NOTES-0.1.0.md",
     ROOT / "docs" / "RELEASE-NOTES-0.1.1.md",
     ROOT / "docs" / "RELEASE-NOTES-0.2.0.md",
+    ROOT / "docs" / "RELEASE-NOTES-0.3.0.md",
     ROOT / "docs" / "demo" / "README.md",
     ROOT / "plugin" / "README.md",
     ROOT / "docs" / "LAUNCH.md",

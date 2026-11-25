@@ -26,6 +26,7 @@ from lookfirst.verdict.describe import (
     evidence_place,
     headline_text,
     is_serious,
+    partial_note,
     where_short,
 )
 from lookfirst.verdict.schema import VERDICT_TEXT, Finding, Report, Severity, VerdictLabel
@@ -98,6 +99,9 @@ def render_terminal(report: Report, console: Console) -> None:
         console.print(_indented(Text(SKELETON_NOTE, style="yellow")))
     for reason in report.summary:
         console.print(_indented(Text("• " + one_line(reason, 120)), 2))
+    partial = partial_note(report)
+    if partial:
+        console.print(_indented(Text(partial, style="yellow"), 2))
 
     console.print()
     facts = Table.grid(padding=(0, 4))
