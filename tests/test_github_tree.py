@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import httpx
 import pytest
 
 from lookfirst.core.config import DEFAULT_LIMITS
+from lookfirst.core.errors import FetchError
 from lookfirst.core.http import make_client
-from lookfirst.targets.github_tree import RepoTree, TreeFile, list_files, pick_files
+from lookfirst.targets.github_tree import (
+    RepoTree,
+    TreeFile,
+    download_files,
+    list_files,
+    pick_files,
+)
 
 SHA = "a" * 40
 SUB = "b" * 40
@@ -50,7 +59,7 @@ def test_a_complete_list(mock_http) -> None:
     assert tree.files == [
         TreeFile("README.md", 10),
         TreeFile("src/app.js", 99),
-        TreeFile("bin/run", 10),
+        TreeFile("bin/run", 10, 0o755),
     ]
     assert tree.links == ["latest"]  # recorded, never followed
     assert tree.complete
@@ -172,3 +181,169 @@ def test_the_size_caps() -> None:
     assert [f.path for f in picked.files] == ["README.md"]
     assert picked.total_bytes == 10
     assert picked.left_out == 2
+
+
+# --- downloading the picked files ----------------------------------------------------
+
+BODIES = {
+    "README.md": b"# Big\n",
+    "install.sh": b"echo hi\n",
+    ".claude/settings.json": b"{}\n",
+}
+
+
+def fetched(
+    mock_http,
+    tmp_path: Path,
+    tree: RepoTree,
+    *,
+    private: bool = False,
+    token: str | None = None,
+    bodies: dict[str, bytes] = BODIES,
+    status: int = 200,
+):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if private:
+            path = request.url.path.split("/contents/", 1)[1]
+        else:
+            path = request.url.path.split(f"/{SHA}/", 1)[1]
+        body = bodies.get(path)
+        return httpx.Response(404 if body is None else status, content=body or b"")
+
+    sent = mock_http(handler)
+    with make_client(token=token) as client:
+        manifest = download_files(
+            client,
+            "octo/big",
+            SHA,
+            tree,
+            pick_files(tree),
+            tmp_path / "src",
+            private=private,
+            limits=DEFAULT_LIMITS,
+        )
+    return manifest, sent
+
+
+def tree_of(sizes: dict[str, int]) -> RepoTree:
+    return RepoTree(files=[TreeFile(p, n) for p, n in sizes.items()])
+
+
+def test_public_files_come_from_raw_without_the_token(mock_http, tmp_path: Path) -> None:
+    tree = RepoTree(files=[TreeFile(p, len(b)) for p, b in BODIES.items()], links=["latest"])
+    bodies = {**BODIES, "latest": b"../../etc"}
+    manifest, sent = fetched(mock_http, tmp_path, tree, token="t0ken", bodies=bodies)
+    assert (tmp_path / "src" / "install.sh").read_bytes() == b"echo hi\n"
+    assert sorted(f.path for f in manifest.files) == sorted(BODIES)
+    assert [(link.path, link.target) for link in manifest.links] == [("latest", "../../etc")]
+    assert not (tmp_path / "src" / "latest").exists()  # a link is read, never made
+    assert {r.url.host for r in sent} == {"raw.githubusercontent.com"}
+    assert all("authorization" not in r.headers for r in sent)
+    assert all(f"/octo/big/{SHA}/" in r.url.path for r in sent)  # the exact commit
+
+
+def test_private_files_come_from_the_api_with_the_token(mock_http, tmp_path: Path) -> None:
+    manifest, sent = fetched(
+        mock_http, tmp_path, tree_of({"README.md": 6}), private=True, token="t0ken"
+    )
+    assert [f.path for f in manifest.files] == ["README.md"]
+    assert [r.url.host for r in sent] == ["api.github.com"]
+    assert sent[0].headers["authorization"] == "Bearer t0ken"
+    assert sent[0].url.params["ref"] == SHA
+
+
+def test_a_file_larger_than_listed_is_not_kept(mock_http, tmp_path: Path) -> None:
+    tree = tree_of({"README.md": 6, "install.sh": 3, ".claude/settings.json": 3})
+    manifest, _ = fetched(mock_http, tmp_path, tree)
+    assert [f.path for f in manifest.files] == ["README.md", ".claude/settings.json"]
+    assert {e.path: e.reason for e in manifest.skipped} == {
+        "install.sh": "differs in size from GitHub's list",
+    }
+    assert not (tmp_path / "src" / "install.sh").exists()
+
+
+def test_a_file_far_larger_than_listed_stops_downloading(mock_http, tmp_path: Path) -> None:
+    big = b"x" * (200 * 1024)
+    manifest, _ = fetched(
+        mock_http,
+        tmp_path,
+        tree_of({"README.md": 6, "go.mod": 10}),
+        bodies={**BODIES, "go.mod": big},
+    )
+    assert {e.path: e.reason for e in manifest.skipped} == {"go.mod": "couldn't be downloaded"}
+    assert not (tmp_path / "src" / "go.mod").exists()
+
+
+def test_tiny_files_that_arrive_compressed_are_kept(mock_http, tmp_path: Path) -> None:
+    """Compression makes a tiny file larger than the file itself on the way."""
+    import gzip
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        packed = gzip.compress(b"{}\n")
+        return httpx.Response(200, content=packed, headers={"content-encoding": "gzip"})
+
+    mock_http(handler)
+    tree = tree_of({".npmrc": 3})
+    with make_client() as client:
+        manifest = download_files(
+            client,
+            "octo/big",
+            SHA,
+            tree,
+            pick_files(tree),
+            tmp_path,
+            private=False,
+            limits=DEFAULT_LIMITS,
+        )
+    assert [f.path for f in manifest.files] == [".npmrc"]
+    assert (tmp_path / ".npmrc").read_bytes() == b"{}\n"
+
+
+def test_a_file_smaller_than_listed_is_not_kept(mock_http, tmp_path: Path) -> None:
+    manifest, _ = fetched(mock_http, tmp_path, tree_of({"README.md": 60, "install.sh": 8}))
+    assert [f.path for f in manifest.files] == ["install.sh"]
+    assert manifest.skipped[0].reason == "differs in size from GitHub's list"
+    assert not (tmp_path / "src" / "README.md").exists()  # never read by the checks
+
+
+def test_when_no_file_arrives_the_check_stops(mock_http, tmp_path: Path) -> None:
+    with pytest.raises(FetchError, match="most of the files"):
+        fetched(mock_http, tmp_path, tree_of({"README.md": 60}))
+
+
+def test_names_that_differ_only_in_case_are_kept_once(mock_http, tmp_path: Path) -> None:
+    tree = tree_of({"README.md": 6, "readme.md": 6})
+    manifest, sent = fetched(mock_http, tmp_path, tree)
+    assert [f.path for f in manifest.files] == ["README.md"]
+    assert "letter case" in manifest.skipped[0].reason
+    assert len(sent) == 1
+
+
+def test_unsafe_paths_from_the_list_are_reported(mock_http, tmp_path: Path) -> None:
+    answers = {f"{SHA}?recursive": {"tree": [blob("../escape.sh"), blob("README.md", 6)]}}
+    tree, _ = listed(mock_http, answers)
+    manifest, _ = fetched(mock_http, tmp_path, tree)
+    assert [e.path for e in manifest.skipped] == ["../escape.sh"]
+    assert "outside" in manifest.skipped[0].reason  # read as install_path.escaping_archive_path
+
+
+def test_when_most_files_fail_the_check_stops(mock_http, tmp_path: Path) -> None:
+    tree = tree_of({"README.md": 6, "install.sh": 8, "go.mod": 4})
+    with pytest.raises(FetchError, match="most of the files"):
+        fetched(mock_http, tmp_path, tree, status=500)
+
+
+def test_a_used_up_rate_limit_stops_the_check(mock_http, tmp_path: Path) -> None:
+    mock_http(lambda request: httpx.Response(403, headers={"x-ratelimit-remaining": "0"}))
+    tree = tree_of({"README.md": 6})
+    with make_client() as client, pytest.raises(FetchError, match="limit on requests"):
+        download_files(
+            client,
+            "octo/big",
+            SHA,
+            tree,
+            pick_files(tree),
+            tmp_path,
+            private=True,
+            limits=DEFAULT_LIMITS,
+        )
