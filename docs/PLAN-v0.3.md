@@ -68,3 +68,24 @@ Estimate: two to three working sessions, each ending in a pull request you merge
 | rust | 64,874 | 530 | 2.7 | complete |
 
 GitHub cut the whole list short for webpack, bun, TypeScript and rust, so the folder-by-folder fallback matters. It used 6 to 17 extra GitHub API calls on those repos, which takes about 6 to 11 seconds. Without a token, GitHub allows 60 calls an hour. A check of such a repo then uses 10 to 21 of them, and 34 at most, against 2 for a repo that downloads whole.
+
+**Step 2 done (24 Nov 2026):** `download_files` downloads the picked files of the exact commit, eight at a time:
+- Public repos come from `raw.githubusercontent.com`, which never gets the token. Private repos come from `api.github.com`.
+- Each file must match the size in GitHub's list once unpacked, or it is deleted and listed as skipped.
+- Names that differ only in letter case are kept once.
+- Link targets are read as text, so the existing "link points outside" check works. Links are never made on disk.
+- If no file arrives, or most fail, the check stops with an error rather than judging a near-empty folder.
+
+Measured on the seven big repos, every picked file arrived:
+
+| Repo | Listing | Downloading | Files |
+|---|---|---|---|
+| webpack | 7.6 s | 0.9 s | 197 |
+| bun | 8.3 s | 8.1 s | 2,000 |
+| node | 5.8 s | 4.4 s | 236 |
+| TypeScript | 8.7 s | 1.2 s | 66 |
+| supabase | 2.3 s | 3.8 s | 254 |
+| next.js | 3.2 s | 16.3 s | 960 |
+| rust | 8.8 s | 8.2 s | 530 |
+
+A first run lost about 40% of webpack's files. GitHub compresses downloads, and a tiny compressed file is larger than the file itself, so the size cap refused it. The cap now allows 64 KB for compression, and a test covers it.
